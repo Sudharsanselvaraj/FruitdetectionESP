@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 # Load YOLOv8 model
-MODEL_PATH = "best_fruits.pt"  # Make sure this is in your repo
+MODEL_PATH = "best_fruits_model.pt"  # Make sure this is in your repo
 model = YOLO(MODEL_PATH)
 
 # Create a folder to save uploaded images and predictions
