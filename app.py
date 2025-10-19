@@ -26,9 +26,7 @@ model = YOLO(MODEL_PATH)
 
 # Create folders
 UPLOAD_DIR = "uploads"
-PRED_DIR = "runs/detect/predict"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(PRED_DIR, exist_ok=True)
 
 @app.get("/")
 async def home():
@@ -49,18 +47,15 @@ async def predict(file: UploadFile = File(...)):
             conf=0.4,
             save=True,
             project="runs/detect",
-            name="predict"
+            name="predict",
+            exist_ok=True  # ensures YOLO doesn't create exp, exp2 folders
         )
 
-        # Get the latest saved image (annotated)
-        saved_images = glob.glob(os.path.join(PRED_DIR, "*.jpg"))  # only jpg files
-        if not saved_images:
-            return JSONResponse(status_code=500, content={"error": "No annotated image found."})
+        # The YOLO result object contains .save() info. Grab first result
+        annotated_image_path = results[0].save()  # returns saved image path
 
-        latest_image = max(saved_images, key=os.path.getctime)
-
-        # Read image as bytes and return as StreamingResponse
-        with open(latest_image, "rb") as f_img:
+        # Read image as bytes and return
+        with open(annotated_image_path, "rb") as f_img:
             buf = io.BytesIO(f_img.read())
             buf.seek(0)
 
