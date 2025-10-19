@@ -1,16 +1,16 @@
 # app.py
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-import shutil
-import os
-from datetime import datetime
+import io
+from PIL import Image
+import numpy as np
 
 # Initialize FastAPI
-app = FastAPI(title="ESP32-CAM Fruit Detection API")
+app = FastAPI(title="ESP32-CAM Fruit Detection API (Optimized)")
 
-# Allow CORS for all origins (so your frontend or ESP32 can call it)
+# Allow CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,44 +19,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load YOLOv8 model
-MODEL_PATH = "best_fruits_model.pt"  # Make sure this is in your repo
+# Load YOLOv8n model for faster CPU inference
+MODEL_PATH = "best_fruits_model.pt"  # Replace with YOLOv8n version if available
 model = YOLO(MODEL_PATH)
-
-# Create a folder to save uploaded images and predictions
-UPLOAD_DIR = "uploads"
-PRED_DIR = "runs/detect/predict"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(PRED_DIR, exist_ok=True)
-
 
 @app.get("/")
 async def home():
     return {"message": "Fruit Detection API is running!"}
 
-
 @app.post("/predict/")
 async def predict(file: UploadFile = File(...)):
     """
-    Accepts an image upload and returns the annotated image with detected fruits.
+    Accepts an image from ESP32-CAM, resizes it, predicts fruits, and returns annotated image.
     """
     try:
-        # Save uploaded file
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(UPLOAD_DIR, f"{timestamp}_{file.filename}")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Read uploaded image
+        image = Image.open(file.file).convert("RGB")
+        
+        # Resize to smaller resolution for faster inference
+        max_size = (320, 320)
+        image.thumbnail(max_size, Image.ANTIALIAS)
+        img_array = np.array(image)
 
-        # Run YOLOv8 prediction
-        results = model.predict(source=file_path, conf=0.4, save=True, show=False)
+        # Run YOLO prediction (no save, CPU optimized)
+        results = model.predict(source=img_array, conf=0.4, save=False, show=False)
 
-        # YOLO saves output in runs/detect/predict by default
-        # Grab the latest saved image
-        pred_image_path = results[0].plot(save=False)  # returns numpy array (optional)
-        save_path = os.path.join(PRED_DIR, f"pred_{timestamp}_{file.filename}")
-        results[0].save(save_path)  # save annotated image
+        # Annotate the image
+        annotated_img = results[0].plot()  # returns numpy array
+        annotated_pil = Image.fromarray(annotated_img)
 
-        return FileResponse(save_path)
+        # Save image to bytes buffer
+        buf = io.BytesIO()
+        annotated_pil.save(buf, format="JPEG")
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/jpeg")
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
