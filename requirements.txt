@@ -1,8 +1,8 @@
-fastapi==0.119.0
-uvicorn[standard]==0.23.2
-ultralytics==8.3.217
-python-multipart==0.0.6
-numpy==1.25.2
-opencv-python-headless==4.8.1.78
-setuptools>=65
+fastapi
+uvicorn[standard]
+ultralytics
+python-multipart
+numpy
+opencv-python-headless
+setuptools
 wheel
