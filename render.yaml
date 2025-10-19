@@ -1,12 +1,11 @@
-# render.yaml
 services:
   - type: web
-    name: fruit-detection-api
+    name: FruitDetectionESP
     env: python
     plan: free
-    region: oregon
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    pythonVersion: 3.12
     envVars:
       - key: PORT
         value: "10000"
