@@ -6,6 +6,7 @@ from ultralytics import YOLO
 import io
 from PIL import Image
 import numpy as np
+import time
 
 # Initialize FastAPI
 app = FastAPI(title="ESP32-CAM Fruit Detection API (Optimized)")
@@ -19,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load YOLOv8n model for faster CPU inference
+# Load YOLO model (use YOLOv8n or CPU-friendly model for faster inference)
 MODEL_PATH = "best_fruits_model.pt"  # Replace with YOLOv8n version if available
 model = YOLO(MODEL_PATH)
 
@@ -33,12 +34,14 @@ async def predict(file: UploadFile = File(...)):
     Accepts an image from ESP32-CAM, resizes it, predicts fruits, and returns annotated image.
     """
     try:
+        start_time = time.time()
+
         # Read uploaded image
         image = Image.open(file.file).convert("RGB")
         
         # Resize to smaller resolution for faster inference
         max_size = (320, 320)
-        image.thumbnail(max_size, Image.ANTIALIAS)
+        image.thumbnail(max_size, Image.LANCZOS)
         img_array = np.array(image)
 
         # Run YOLO prediction (no save, CPU optimized)
@@ -52,6 +55,9 @@ async def predict(file: UploadFile = File(...)):
         buf = io.BytesIO()
         annotated_pil.save(buf, format="JPEG")
         buf.seek(0)
+
+        end_time = time.time()
+        print(f"Inference completed in {end_time - start_time:.2f}s")
 
         return StreamingResponse(buf, media_type="image/jpeg")
 
