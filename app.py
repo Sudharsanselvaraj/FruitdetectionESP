@@ -50,4 +50,4 @@ async def predict(file: UploadFile = File(...)):
         return FileResponse(latest_image)
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)}) this is my code fix this
+        return JSONResponse(status_code=500, content={"error": str(e)}) 
