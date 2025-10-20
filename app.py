@@ -10,6 +10,7 @@ import glob
 # Initialize FastAPI
 app = FastAPI(title="ESP32-CAM Fruit Detection API")
 
+# Allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,15 +19,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load YOLOv8 model
+# Load YOLO model
 MODEL_PATH = "best_fruits_model.pt"
 model = YOLO(MODEL_PATH)
 
-# Create folders
+# Create directories
 UPLOAD_DIR = "uploads"
-PRED_DIR = "runs/detect/predict"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(PRED_DIR, exist_ok=True)
 
 @app.get("/")
 async def home():
@@ -35,19 +34,38 @@ async def home():
 @app.post("/predict/")
 async def predict(file: UploadFile = File(...)):
     try:
+        # Save the uploaded file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(UPLOAD_DIR, f"{timestamp}_{file.filename}")
-        with open(file_path, "wb") as buffer:
+        input_path = os.path.join(UPLOAD_DIR, f"{timestamp}_{file.filename}")
+        with open(input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Run YOLOv8 prediction and save results
-        results = model.predict(source=file_path, conf=0.4, save=True, project="runs/detect", name="predict")
+        # Run YOLOv8 inference and save annotated output
+        results = model.predict(
+            source=input_path,
+            conf=0.4,
+            save=True,
+            project="runs/detect",
+            name="predict",
+            exist_ok=True
+        )
 
-        # Get the latest saved image
-        saved_images = glob.glob(os.path.join(PRED_DIR, "*"))
-        latest_image = max(saved_images, key=os.path.getctime)
+        # Find the latest predict folder (e.g. runs/detect/predict3)
+        predict_dirs = sorted(glob.glob("runs/detect/predict*"), key=os.path.getctime)
+        if not predict_dirs:
+            return JSONResponse(status_code=500, content={"error": "No prediction folder found."})
 
-        return FileResponse(latest_image)
+        latest_dir = predict_dirs[-1]
+
+        # Find the annotated image inside that folder
+        image_files = glob.glob(os.path.join(latest_dir, "*.jpg"))
+        if not image_files:
+            return JSONResponse(status_code=500, content={"error": "No annotated image found."})
+
+        latest_image = max(image_files, key=os.path.getctime)
+
+        # ✅ Return image directly
+        return FileResponse(latest_image, media_type="image/jpeg")
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)}) 
+        return JSONResponse(status_code=500, content={"error": str(e)})
